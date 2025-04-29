@@ -2,7 +2,8 @@
 
 A face recognition application that helps Alzheimer's patients identify familiar people using camera technology.
 
-![FaceRecall Screenshot](screenshots/app-screenshot.png)
+![run](https://github.com/user-attachments/assets/991a8827-a7b5-4564-9507-90d868271ed6)
+![run-2](https://github.com/user-attachments/assets/93289e43-c9bf-481b-95d0-a7627f9f0306)
 
 ## Overview
 
