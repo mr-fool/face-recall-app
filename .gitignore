@@ -1,0 +1,15 @@
+node_modules/.bin/asar
+node_modules/.bin/electron-packager
+node_modules/.bin/electron-osx-sign.ps1
+node_modules/.bin/electron-osx-sign.cmd
+node_modules/.bin/electron-osx-flat.cmd
+node_modules/.bin/electron-osx-sign
+node_modules/.bin/electron-osx-flat.ps1
+node_modules/.bin/electron-packager.ps1
+node_modules/.bin/asar.ps1
+node_modules/.bin/asar.cmd
+node_modules/.bin/electron-packager.cmd
+node_modules/.bin/electron
+node_modules/.package-lock.json
+node_modules/*
+package-lock.json

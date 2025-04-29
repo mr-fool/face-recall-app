@@ -123,36 +123,110 @@ function setupEventListeners() {
 }
 
 // Camera Functions
+// Replace your existing toggleCamera function with this one
 async function toggleCamera() {
+  console.log("Toggle camera button clicked");
+  
   if (isCameraActive) {
+    console.log("Stopping camera");
     stopCamera();
   } else {
-    startCamera();
+    console.log("Starting camera - debugging version");
+    
+    // First, check if media devices API is available
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      console.error("MediaDevices API not available");
+      alert("Your browser doesn't support camera access. Try updating your browser.");
+      return;
+    }
+    
+    try {
+      console.log("Listing available media devices:");
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(device => device.kind === 'videoinput');
+      console.log("Available video devices:", videoDevices);
+      
+      if (videoDevices.length === 0) {
+        console.warn("No video devices found!");
+        alert("No cameras detected on your system. Please connect a webcam.");
+        
+        // Add fallback for testing without camera
+        const useFallback = confirm("Would you like to use a test image instead for debugging?");
+        if (useFallback) {
+          enableTestMode();
+        }
+        return;
+      }
+      
+      // Try with more permissive constraints
+      console.log("Requesting camera with basic constraints");
+      cameraStream = await navigator.mediaDevices.getUserMedia({ 
+        video: true,
+        audio: false
+      });
+      
+      console.log("Camera access granted", cameraStream);
+      cameraView.srcObject = cameraStream;
+      
+      // Make sure video is playing
+      cameraView.onloadedmetadata = () => {
+        console.log("Video metadata loaded, playing video");
+        cameraView.play().catch(e => console.error("Error playing video:", e));
+      };
+      
+      isCameraActive = true;
+      toggleCameraButton.textContent = 'Stop Camera';
+      takePhotoButton.disabled = false;
+      
+      console.log("Camera setup complete");
+    } catch (error) {
+      console.error('Error accessing camera:', error);
+      alert('Could not access the camera: ' + error.message);
+      
+      // Offer test mode
+      const useFallback = confirm("Would you like to use a test image instead for debugging?");
+      if (useFallback) {
+        enableTestMode();
+      }
+    }
   }
 }
 
-async function startCamera() {
-  try {
-    cameraStream = await navigator.mediaDevices.getUserMedia({ 
-      video: { 
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-        facingMode: 'user'
-      } 
-    });
+// Add test mode functionality
+function enableTestMode() {
+  console.log("Enabling test mode");
+  
+  // Create a canvas as a mock video source
+  const canvas = document.createElement('canvas');
+  canvas.width = 640;
+  canvas.height = 480;
+  const ctx = canvas.getContext('2d');
+  
+  // Load a test image
+  const img = new Image();
+  img.onload = function() {
+    // Draw image on canvas
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     
-    cameraView.srcObject = cameraStream;
+    // Use the canvas as our video source
+    cameraView.srcObject = null;
+    cameraView.src = canvas.toDataURL();
+    
+    // Update UI
     isCameraActive = true;
-    toggleCameraButton.textContent = 'Stop Camera';
+    toggleCameraButton.textContent = 'Stop Test';
     takePhotoButton.disabled = false;
     
-    // Setup canvas for face detection overlay
-    cameraOverlay.width = cameraView.videoWidth;
-    cameraOverlay.height = cameraView.videoHeight;
-  } catch (error) {
-    console.error('Error accessing camera:', error);
-    alert('Could not access the camera. Please make sure it is connected and permissions are granted.');
-  }
+    alert('Test mode activated. You can click "Recognize Face" to test the recognition feature.');
+  };
+  
+  img.onerror = function() {
+    console.error("Failed to load test image");
+    alert("Could not load test image. Please make sure assets/images/default-avatar.jpg exists.");
+  };
+  
+  // Try to load test image
+  img.src = 'assets/images/default-avatar.jpg';
 }
 
 function stopCamera() {
