@@ -6,6 +6,7 @@
 
 // Module dependencies
 const path = require('path');
+const fs = require('fs'); // Add this import
 const ui = require('./ui');
 const settings = require('./settings');
 
@@ -208,11 +209,25 @@ async function getFaceDescriptor(imagePath) {
     // Create Image element
     const img = new Image();
     
+    // Set crossOrigin to anonymous for local files
+    img.crossOrigin = 'anonymous';
+    
+    // Create a data URL from the image path
+    const imageData = await fs.promises.readFile(imagePath);
+    const base64Image = imageData.toString('base64');
+    
+    // Determine the correct MIME type based on the file extension
+    const extension = path.extname(imagePath).toLowerCase();
+    const mimeType = extension === '.png' ? 'image/png' : 
+                    (extension === '.jpg' || extension === '.jpeg') ? 'image/jpeg' : 'image/png';
+    
+    const dataUrl = `data:${mimeType};base64,${base64Image}`;
+    
     // Load image and wait for it
     await new Promise((resolve, reject) => {
       img.onload = resolve;
       img.onerror = reject;
-      img.src = imagePath;
+      img.src = dataUrl;
     });
     
     // Detect face in image
