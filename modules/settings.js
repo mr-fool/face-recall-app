@@ -16,6 +16,9 @@ function logDebug(message) {
 const DEFAULT_SETTINGS = {
   confidenceThreshold: 0.6,
   announcementMode: 'name',
+  preferredVoice: null,  // Add this line for voice settings
+  voicePitch: 1.2,       // Add this line for voice pitch
+  voiceRate: 0.9,        // Add this line for voice rate
   textSize: 'normal',
   highContrast: false
 };
@@ -86,6 +89,47 @@ function applySettings() {
     elements.announcementMode.value = currentSettings.announcementMode;
   }
   
+  // Apply voice settings
+  if (elements.voiceSelect && elements.voiceSelect.options.length === 0) {
+    const recognition = require('./recognition');
+    const voices = recognition.getAvailableVoices();
+    
+    // Add default option
+    const defaultOption = document.createElement('option');
+    defaultOption.value = '';
+    defaultOption.textContent = 'Default Voice';
+    elements.voiceSelect.appendChild(defaultOption);
+    
+    // Add available voices
+    voices.forEach(voice => {
+      const option = document.createElement('option');
+      option.value = voice.name;
+      option.textContent = `${voice.name} (${voice.lang})`;
+      elements.voiceSelect.appendChild(option);
+    });
+    
+    // Set selected voice
+    if (currentSettings.preferredVoice) {
+      elements.voiceSelect.value = currentSettings.preferredVoice;
+    }
+  }
+  
+  // Apply voice pitch
+  if (elements.voicePitch) {
+    elements.voicePitch.value = currentSettings.voicePitch;
+    if (elements.voicePitchValue) {
+      elements.voicePitchValue.textContent = currentSettings.voicePitch;
+    }
+  }
+  
+  // Apply voice rate
+  if (elements.voiceRate) {
+    elements.voiceRate.value = currentSettings.voiceRate;
+    if (elements.voiceRateValue) {
+      elements.voiceRateValue.textContent = currentSettings.voiceRate;
+    }
+  }
+  
   // Apply text size
   if (elements.textSize) {
     elements.textSize.value = currentSettings.textSize;
@@ -122,6 +166,36 @@ function setupEventListeners() {
   if (elements.announcementMode) {
     elements.announcementMode.addEventListener('change', () => {
       currentSettings.announcementMode = elements.announcementMode.value;
+      saveSettings();
+    });
+  }
+  
+  // Voice selection
+  if (elements.voiceSelect) {
+    elements.voiceSelect.addEventListener('change', () => {
+      currentSettings.preferredVoice = elements.voiceSelect.value;
+      saveSettings();
+    });
+  }
+  
+  // Voice pitch
+  if (elements.voicePitch) {
+    elements.voicePitch.addEventListener('input', () => {
+      currentSettings.voicePitch = parseFloat(elements.voicePitch.value);
+      if (elements.voicePitchValue) {
+        elements.voicePitchValue.textContent = elements.voicePitch.value;
+      }
+      saveSettings();
+    });
+  }
+  
+  // Voice rate
+  if (elements.voiceRate) {
+    elements.voiceRate.addEventListener('input', () => {
+      currentSettings.voiceRate = parseFloat(elements.voiceRate.value);
+      if (elements.voiceRateValue) {
+        elements.voiceRateValue.textContent = elements.voiceRate.value;
+      }
       saveSettings();
     });
   }
@@ -181,6 +255,30 @@ function getAnnouncementMode() {
 }
 
 /**
+ * Get current preferred voice
+ * @returns {string} Current preferred voice name
+ */
+function getPreferredVoice() {
+  return currentSettings.preferredVoice;
+}
+
+/**
+ * Get current voice pitch
+ * @returns {number} Current voice pitch
+ */
+function getVoicePitch() {
+  return currentSettings.voicePitch;
+}
+
+/**
+ * Get current voice rate
+ * @returns {number} Current voice rate
+ */
+function getVoiceRate() {
+  return currentSettings.voiceRate;
+}
+
+/**
  * Get current text size setting
  * @returns {string} Current text size
  */
@@ -196,12 +294,53 @@ function getHighContrast() {
   return currentSettings.highContrast;
 }
 
+function onVoicesLoaded() {
+  logDebug('Voices loaded notification received');
+  
+  // Repopulate the voice dropdown
+  const elements = ui.getElements();
+  if (elements.voiceSelect) {
+    const recognition = require('./recognition');
+    const voices = recognition.getAvailableVoices();
+    
+    // Clear existing options first
+    elements.voiceSelect.innerHTML = '';
+    
+    // Add default option
+    const defaultOption = document.createElement('option');
+    defaultOption.value = '';
+    defaultOption.textContent = 'Default Voice';
+    elements.voiceSelect.appendChild(defaultOption);
+    
+    // Add available voices
+    voices.forEach(voice => {
+      const option = document.createElement('option');
+      option.value = voice.name;
+      // Add (Female) label for easier identification
+      const isFemale = voice.name.toLowerCase().match(/(female|woman|girl|zira|samantha|karen|tessa|monica|victoria|allison|ava|susan|kathy|fiona|alex|anna)/);
+      option.textContent = `${voice.name} (${voice.lang})${isFemale ? ' - Female' : ''}`;
+      elements.voiceSelect.appendChild(option);
+    });
+    
+    // Set selected voice
+    if (currentSettings.preferredVoice) {
+      elements.voiceSelect.value = currentSettings.preferredVoice;
+    }
+    
+    logDebug(`Populated voice select with ${voices.length} voices`);
+  }
+}
+
 // Export the module functions
 module.exports = {
   init,
   applySettings,
   getRecognitionThreshold,
   getAnnouncementMode,
+  getPreferredVoice,
+  getVoicePitch,
+  getVoiceRate,
   getTextSize,
-  getHighContrast
+  getHighContrast,
+  onVoicesLoaded  // Add this new function to the exports
 };

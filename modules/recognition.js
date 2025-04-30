@@ -3,6 +3,8 @@
  * 
  * This module handles face detection, recognition, and processing
  */
+let speechVoices = [];
+let preferredVoice = null;
 
 // Module dependencies
 const path = require('path');
@@ -21,6 +23,116 @@ let recognitionActive = false;
 let peopleModule = null;
 let modelsLoaded = false;
 
+function initSpeechSynthesis() {
+  if ('speechSynthesis' in window) {
+    logDebug('Initializing speech synthesis');
+    
+    // Function to load and process voices
+    const loadVoices = () => {
+      speechVoices = window.speechSynthesis.getVoices();
+      logDebug(`Loaded ${speechVoices.length} voices`);
+      
+      // Log all available voices for debugging
+      speechVoices.forEach(voice => {
+        logDebug(`Voice: ${voice.name} (${voice.lang}) - Default: ${voice.default}`);
+      });
+      
+      // More aggressive filter for female voices - check for common patterns in various languages
+      const femaleVoices = speechVoices.filter(voice => {
+        const nameLower = voice.name.toLowerCase();
+        return nameLower.includes('female') || 
+               nameLower.includes('woman') ||
+               nameLower.includes('girl') ||
+               nameLower.includes('zira') ||
+               nameLower.includes('samantha') ||
+               nameLower.includes('karen') ||
+               nameLower.includes('tessa') ||
+               nameLower.includes('monica') ||
+               nameLower.includes('victoria') ||
+               nameLower.includes('allison') ||
+               nameLower.includes('ava') ||
+               nameLower.includes('susan') ||
+               nameLower.includes('kathy') ||
+               nameLower.includes('vicki') ||
+               nameLower.includes('fiona') ||
+               nameLower.includes('laura') ||
+               nameLower.includes('lisa') ||
+               // Common female names in voice systems
+               nameLower.includes('alex') || // macOS has a female Alex voice
+               nameLower.includes('alva') ||
+               nameLower.includes('amelie') ||
+               nameLower.includes('anna') ||
+               nameLower.includes('carmit') ||
+               nameLower.includes('damayanti') ||
+               nameLower.includes('ellen') ||
+               nameLower.includes('ioana') ||
+               nameLower.includes('joana') ||
+               nameLower.includes('kyoko') ||
+               nameLower.includes('lekha') ||
+               nameLower.includes('luca') ||
+               nameLower.includes('luciana') ||
+               nameLower.includes('maged') ||
+               nameLower.includes('mariska') ||
+               nameLower.includes('meijia') ||
+               nameLower.includes('melina') ||
+               nameLower.includes('milena') ||
+               nameLower.includes('moira') ||
+               nameLower.includes('monica') ||
+               nameLower.includes('nora') ||
+               nameLower.includes('paulina') ||
+               nameLower.includes('samantha') ||
+               nameLower.includes('sara') ||
+               nameLower.includes('satu') ||
+               nameLower.includes('tessa') ||
+               nameLower.includes('ting-ting') ||
+               nameLower.includes('veena') ||
+               nameLower.includes('yuna') ||
+               nameLower.includes('zosia');
+      });
+      
+      // Log available female voices for debugging
+      if (femaleVoices.length > 0) {
+        logDebug(`Found ${femaleVoices.length} female voices:`);
+        femaleVoices.forEach(voice => {
+          logDebug(`- ${voice.name} (${voice.lang})`);
+        });
+        preferredVoice = femaleVoices[0];
+        logDebug(`Selected voice: ${preferredVoice.name}`);
+      } else {
+        logDebug('No female voices found, using default voice');
+        // If no female voice is found, try to use any non-default voice or just the first voice
+        if (speechVoices.length > 0) {
+          preferredVoice = speechVoices[0];
+          logDebug(`Selected default voice: ${preferredVoice.name}`);
+        }
+      }
+      
+      // Notify settings module that voices are loaded
+      const settingsModule = require('./settings');
+      if (settingsModule.onVoicesLoaded) {
+        settingsModule.onVoicesLoaded();
+      }
+    };
+    
+    // Chrome/Electron loads voices asynchronously
+    if (window.speechSynthesis.onvoiceschanged !== undefined) {
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+    
+    // Try loading voices immediately (works in Firefox)
+    loadVoices();
+    
+    // Sometimes onvoiceschanged never fires, so we'll try again after a delay
+    setTimeout(() => {
+      if (speechVoices.length === 0) {
+        logDebug('No voices loaded after initial attempts, trying again...');
+        loadVoices();
+      }
+    }, 1000);
+  } else {
+    logDebug('Speech synthesis not supported in this browser');
+  }
+}
 /**
  * Initialize the recognition module
  * @param {Object} peopleModuleRef - Reference to the people module
@@ -30,6 +142,9 @@ function init(peopleModuleRef) {
   
   // Store reference to people module
   peopleModule = peopleModuleRef;
+  
+  // Initialize speech synthesis
+  initSpeechSynthesis();
   
   // Delay loading face-api to avoid platform warning
   setTimeout(() => {
@@ -273,10 +388,57 @@ function announceRecognition(person) {
       speech.text = `${person.name}, your ${person.relationship || 'contact'}. ${person.notes || ''}`;
     }
     
+    // Check for user's preferred voice from settings
+    const preferredVoiceName = settings.getPreferredVoice();
+    
+    // Ensure voices are loaded
+    if (speechVoices.length === 0) {
+      // Try loading voices again
+      speechVoices = window.speechSynthesis.getVoices();
+    }
+    
+    // Try to find the preferred voice
+    let voiceFound = false;
+    
+    if (preferredVoiceName && speechVoices.length > 0) {
+      // Find the voice by name
+      const selectedVoice = speechVoices.find(voice => voice.name === preferredVoiceName);
+      if (selectedVoice) {
+        speech.voice = selectedVoice;
+        voiceFound = true;
+        logDebug(`Using selected voice: ${selectedVoice.name}`);
+      }
+    }
+    
+    // If no voice was found or set, try the auto-detected female voice
+    if (!voiceFound && preferredVoice) {
+      speech.voice = preferredVoice;
+      voiceFound = true;
+      logDebug(`Using detected female voice: ${preferredVoice.name}`);
+    }
+    
+    // If still no voice, log a message
+    if (!voiceFound) {
+      logDebug('No specific voice selected or detected, using system default');
+    }
+    
+    // Apply pitch and rate from settings
+    speech.pitch = settings.getVoicePitch();
+    speech.rate = settings.getVoiceRate();
+    
+    // Log the final voice configuration
+    logDebug(`Speaking with voice: ${speech.voice ? speech.voice.name : 'default'}, pitch: ${speech.pitch}, rate: ${speech.rate}`);
+    
+    // Cancel any previous speech
+    window.speechSynthesis.cancel();
+    
+    // Speak the text
     window.speechSynthesis.speak(speech);
   }
 }
-
+function getAvailableVoices() {
+  return speechVoices;
+}
 /**
  * Check if recognition is currently active
  * @returns {boolean} Whether recognition is active
@@ -292,7 +454,75 @@ function isActive() {
 function isModelsLoaded() {
   return modelsLoaded;
 }
-
+function debugVoices() {
+  console.log('=== VOICE DEBUG INFO ===');
+  
+  // Check if speech synthesis is supported
+  if (!('speechSynthesis' in window)) {
+    console.log('Speech synthesis not supported in this browser/environment');
+    return;
+  }
+  
+  // List all voices
+  const allVoices = window.speechSynthesis.getVoices();
+  console.log(`Total voices available: ${allVoices.length}`);
+  
+  if (allVoices.length === 0) {
+    console.log('No voices loaded yet. Try running this function again in a few seconds.');
+    // Try to force load voices
+    window.speechSynthesis.cancel();
+    setTimeout(() => {
+      const recheck = window.speechSynthesis.getVoices();
+      console.log(`After force reload: ${recheck.length} voices`);
+      recheck.forEach((voice, index) => {
+        console.log(`Voice ${index + 1}: ${voice.name} (${voice.lang}) - Default: ${voice.default}`);
+      });
+    }, 500);
+    return;
+  }
+  
+  // Log all voices
+  allVoices.forEach((voice, index) => {
+    console.log(`Voice ${index + 1}: ${voice.name} (${voice.lang}) - Default: ${voice.default}`);
+  });
+  
+  // Find potential female voices
+  const femalePatterns = [
+    'female', 'woman', 'girl', 'zira', 'samantha', 'karen', 'tessa', 'monica', 
+    'victoria', 'allison', 'ava', 'susan', 'kathy', 'fiona', 'alex', 'anna'
+  ];
+  
+  const potentialFemaleVoices = allVoices.filter(voice => {
+    const nameLower = voice.name.toLowerCase();
+    return femalePatterns.some(pattern => nameLower.includes(pattern));
+  });
+  
+  console.log(`Potential female voices: ${potentialFemaleVoices.length}`);
+  potentialFemaleVoices.forEach((voice, index) => {
+    console.log(`Female voice ${index + 1}: ${voice.name} (${voice.lang})`);
+  });
+  
+  // Current preference info
+  console.log(`Current preferred voice: ${preferredVoice ? preferredVoice.name : 'None'}`);
+  console.log(`Settings voice name: ${settings.getPreferredVoice() || 'None'}`);
+  
+  // Test a voice
+  console.log('Testing a voice... (should speak "Hello, this is a test")');
+  const speech = new SpeechSynthesisUtterance('Hello, this is a test');
+  if (preferredVoice) speech.voice = preferredVoice;
+  speech.pitch = settings.getVoicePitch();
+  speech.rate = settings.getVoiceRate();
+  window.speechSynthesis.speak(speech);
+  
+  console.log('=== END VOICE DEBUG INFO ===');
+  
+  return {
+    allVoices,
+    femaleVoices: potentialFemaleVoices,
+    currentPreferred: preferredVoice,
+    settingsVoice: settings.getPreferredVoice()
+  };
+}
 // Export the module functions
 module.exports = {
   init,
@@ -300,5 +530,7 @@ module.exports = {
   getFaceDescriptor,
   loadFaceRecognitionModels,
   isActive,
-  isModelsLoaded
+  isModelsLoaded,
+  getAvailableVoices,
+  debugVoices
 };
