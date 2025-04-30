@@ -1,11 +1,29 @@
 const Datastore = require('nedb');
 const path = require('path');
 
-// Database initialization
-const db = new Datastore({
-  filename: path.join(app.getPath('userData'), 'people.db'),
+// We'll use a flexible approach that works in both main and renderer process
+let dbPath = path.join(__dirname, 'data');
+
+// Database initialization with a placeholder path, 
+// will be updated by the init function
+let db = new Datastore({
+  filename: path.join(dbPath, 'people.db'),
   autoload: true
 });
+
+// Initialize the database with the correct path
+function initDatabase(userDataPath) {
+  dbPath = userDataPath;
+  
+  // Re-initialize the database with the correct path
+  db = new Datastore({
+    filename: path.join(dbPath, 'people.db'),
+    autoload: true
+  });
+  
+  console.log('Database initialized at:', path.join(dbPath, 'people.db'));
+  return true;
+}
 
 // Person model
 class Person {
@@ -22,6 +40,9 @@ class Person {
 
 // Database operations
 module.exports = {
+  // Initialize database with the correct path
+  init: initDatabase,
+  
   // Add a new person to the database
   addPerson: (person) => {
     return new Promise((resolve, reject) => {

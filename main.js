@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { initialize } = require('@electron/remote/main');
 
 let mainWindow;
 
@@ -11,16 +12,21 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
-      webSecurity: true,  // Keep security on
-      additionalArguments: ['--enable-features=WebRTC-CaptureService']  // Add this line
+      webSecurity: true,  
+      enableRemoteModule: true, // Enable remote module
+      additionalArguments: ['--enable-features=WebRTC-CaptureService']
     },
     icon: path.join(__dirname, 'assets/images/icon.png')
   });
 
+  // Initialize remote module
+  initialize();
+  require('@electron/remote/main').enable(mainWindow.webContents);
+
   mainWindow.loadFile('index.html');
   
-  // Open DevTools in development
-  // mainWindow.webContents.openDevTools();
+  // Open DevTools for debugging
+  mainWindow.webContents.openDevTools();
   
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -64,4 +70,10 @@ ipcMain.handle('select-photos', async () => {
     return result.filePaths;
   }
   return [];
+});
+
+// Add handler for getting user data path
+ipcMain.handle('get-user-data-path', () => {
+  console.log('Renderer requested user data path:', app.getPath('userData'));
+  return app.getPath('userData');
 });

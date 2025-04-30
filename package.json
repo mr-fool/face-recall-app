@@ -8,6 +8,7 @@
     "package": "electron-packager . FaceRecall --platform=win32,darwin --arch=x64 --out=dist/"
   },
   "dependencies": {
+    "@electron/remote": "^2.0.11",
     "electron": "^22.3.25",
     "face-api.js": "^0.22.2",
     "nedb": "^1.8.0"
