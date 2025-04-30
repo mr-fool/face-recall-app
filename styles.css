@@ -489,3 +489,38 @@ textarea {
     margin-top: 10px;
   }
 }
+/* Styles for the age information */
+#person-age, .person-age {
+  font-size: 1.1em;
+  color: #4a90e2;
+  margin: 5px 0;
+  font-weight: 500;
+  background-color: #f0f7ff;
+  padding: 5px 10px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.person-list-details .person-age {
+  margin: 5px 0;
+  font-size: 0.9em;
+  display: inline-block;
+}
+
+/* Add styling for photo preview with age info */
+.photo-preview .status-text {
+  font-size: 0.85em;
+  padding: 6px;
+}
+
+.photo-preview.valid .status-text {
+  background-color: rgba(76, 175, 80, 0.9);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  #person-age, .person-age {
+    display: block;
+    margin: 10px 0;
+  }
+}

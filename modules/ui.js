@@ -47,6 +47,7 @@ function cacheElements() {
   elements.personNotes = document.getElementById('person-notes');
   elements.recognitionConfidence = document.getElementById('recognition-confidence');
   elements.personPhoto = document.getElementById('person-photo');
+  elements.personAge = document.getElementById('person-age');
 
   // Tab navigation
   elements.tabButtons = document.querySelectorAll('.tab-button');
@@ -188,6 +189,38 @@ function displayRecognitionResult(result) {
     const confidence = Math.round(result.confidence * 100);
     elements.recognitionConfidence.textContent = `Confidence: ${confidence}%`;
     
+    // Display age information if available
+    let ageText = '';
+    if (result.ageResult) {
+      ageText = `Estimated age: ${result.ageResult.age} years`;
+    } else if (person.detectedAge) {
+      ageText = `Estimated age: ${person.detectedAge} years`;
+    }
+    
+    // Check if person-age element exists, if not create it
+    if (!elements.personAge) {
+      // Create age element if it doesn't exist
+      elements.personAge = document.createElement('p');
+      elements.personAge.id = 'person-age';
+      elements.personAge.className = 'person-age';
+      
+      // Insert after confidence
+      if (elements.recognitionConfidence.parentNode) {
+        elements.recognitionConfidence.parentNode.insertBefore(
+          elements.personAge, 
+          elements.recognitionConfidence.nextSibling
+        );
+      }
+    }
+    
+    // Update age text and visibility
+    if (ageText) {
+      elements.personAge.textContent = ageText;
+      elements.personAge.classList.remove('hidden');
+    } else {
+      elements.personAge.classList.add('hidden');
+    }
+    
     // If person has images saved, show the first one
     if (person.images && person.images.length > 0) {
       elements.personPhoto.src = person.images[0];
@@ -206,10 +239,18 @@ function displayRecognitionResult(result) {
       ctx.lineWidth = 3;
       ctx.strokeRect(box.x, box.y, box.width, box.height);
       
-      // Add label
+      // Add label with name and age if available
       ctx.font = '24px Arial';
       ctx.fillStyle = '#00ff00';
-      ctx.fillText(person.name, box.x, box.y - 10);
+      
+      let labelText = person.name;
+      if (result.ageResult) {
+        labelText += ` (${result.ageResult.age}y)`;
+      } else if (person.detectedAge) {
+        labelText += ` (${person.detectedAge}y)`;
+      }
+      
+      ctx.fillText(labelText, box.x, box.y - 10);
     }
   } else {
     // Hide loading and recognition displays
@@ -218,6 +259,13 @@ function displayRecognitionResult(result) {
     
     // Show no recognition display
     elements.noRecognition.classList.remove('hidden');
+    
+    // If age was detected but person not recognized, show age
+    if (result.ageResult) {
+      const ageMessageElement = document.createElement('p');
+      ageMessageElement.textContent = `Estimated age: ${result.ageResult.age} years old`;
+      elements.noRecognition.appendChild(ageMessageElement);
+    }
   }
 }
 
@@ -264,6 +312,14 @@ function displayPeopleList(people) {
     
     const relationship = document.createElement('p');
     relationship.textContent = person.relationship || 'No relationship specified';
+    
+    // Add age display if available
+    if (person.detectedAge) {
+      const age = document.createElement('p');
+      age.className = 'person-age';
+      age.textContent = `Estimated age: ${person.detectedAge} years`;
+      details.appendChild(age);
+    }
     
     const lastSeen = document.createElement('p');
     lastSeen.className = 'last-seen';
@@ -329,12 +385,19 @@ function displayPhotoPreview(photos) {
     preview.src = photo.path;
     preview.alt = 'Selected photo';
     
-    const statusText = document.createElement('span');
-    statusText.className = `status-text ${photo.valid ? 'success' : 'error'}`;
-    statusText.textContent = photo.valid ? 'Face detected' : photo.error || 'No face detected';
+    // Add age information if available
+    let statusText = photo.valid ? 'Face detected' : photo.error || 'No face detected';
+    
+    if (photo.valid && photo.ageResult) {
+      statusText += ` (Age: ~${photo.ageResult.age} years)`;
+    }
+    
+    const statusElement = document.createElement('span');
+    statusElement.className = `status-text ${photo.valid ? 'success' : 'error'}`;
+    statusElement.textContent = statusText;
     
     previewContainer.appendChild(preview);
-    previewContainer.appendChild(statusText);
+    previewContainer.appendChild(statusElement);
     elements.photoPreviewContainer.appendChild(previewContainer);
   });
 }

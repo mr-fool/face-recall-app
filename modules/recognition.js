@@ -8,7 +8,7 @@ let preferredVoice = null;
 
 // Module dependencies
 const path = require('path');
-const fs = require('fs'); // Add this import
+const fs = require('fs'); 
 const ui = require('./ui');
 const settings = require('./settings');
 
@@ -22,6 +22,7 @@ let faceapi = null;
 let recognitionActive = false;
 let peopleModule = null;
 let modelsLoaded = false;
+let ageGenderModelLoaded = false;
 
 function initSpeechSynthesis() {
   if ('speechSynthesis' in window) {
@@ -197,6 +198,16 @@ async function loadFaceRecognitionModels() {
     await faceapi.nets.faceRecognitionNet.load(modelPath);
     await faceapi.nets.faceExpressionNet.load(modelPath);
     
+    // Load age and gender models
+    try {
+      await faceapi.nets.ageGenderNet.load(modelPath);
+      ageGenderModelLoaded = true;
+      logDebug('Age/gender model loaded successfully');
+    } catch (error) {
+      console.error('Error loading age/gender model:', error);
+      ageGenderModelLoaded = false;
+    }
+    
     logDebug('Face recognition models loaded successfully');
     modelsLoaded = true;
     return true;
@@ -248,6 +259,27 @@ async function recognizeFace(imageData) {
     // Get the most prominent detected face
     const detection = detections[0];
     
+    // Detect age and gender if model is loaded
+    let ageResult = null;
+    if (ageGenderModelLoaded) {
+      try {
+        const ageDetection = await faceapi.detectSingleFace(img)
+          .withFaceLandmarks()
+          .withAgeAndGender();
+        
+        if (ageDetection) {
+          ageResult = {
+            age: Math.round(ageDetection.age),
+            gender: ageDetection.gender,
+            genderProbability: ageDetection.genderProbability
+          };
+          logDebug(`Age detection result: ${ageResult.age} years old, ${ageResult.gender} (${Math.round(ageResult.genderProbability * 100)}% confidence)`);
+        }
+      } catch (error) {
+        console.error('Error detecting age:', error);
+      }
+    }
+    
     // Get known people data
     const knownPeople = await peopleModule.getKnownPeople();
     
@@ -282,20 +314,27 @@ async function recognizeFace(imageData) {
       // Update last recognized timestamp in database
       peopleModule.updateLastRecognized(person._id);
       
+      // If we detected age, update it in the database
+      if (ageResult) {
+        peopleModule.updatePersonAge(person._id, ageResult.age);
+      }
+      
       // Announce recognition based on settings
-      announceRecognition(person);
+      announceRecognition(person, ageResult);
       
       // Display results in UI
       ui.displayRecognitionResult({
         recognized: true,
         person: person,
         confidence: match.distance,
-        detection: detection.detection
+        detection: detection.detection,
+        ageResult: ageResult
       });
     } else {
       ui.displayRecognitionResult({ 
         recognized: false,
-        message: 'Face not recognized. Try adding this person first.'
+        message: 'Face not recognized. Try adding this person first.',
+        ageResult: ageResult
       });
     }
   } catch (error) {
@@ -350,11 +389,32 @@ async function getFaceDescriptor(imagePath) {
       .withFaceLandmarks()
       .withFaceDescriptor();
     
+    // If age/gender model is loaded, also detect age
+    let ageResult = null;
+    if (ageGenderModelLoaded && detection) {
+      try {
+        const ageDetection = await faceapi.detectSingleFace(img)
+          .withFaceLandmarks()
+          .withAgeAndGender();
+        
+        if (ageDetection) {
+          ageResult = {
+            age: Math.round(ageDetection.age),
+            gender: ageDetection.gender,
+            genderProbability: ageDetection.genderProbability
+          };
+        }
+      } catch (error) {
+        console.error('Error detecting age during descriptor extraction:', error);
+      }
+    }
+    
     if (detection) {
       return {
         valid: true,
         descriptor: Array.from(detection.descriptor),
-        detection: detection
+        detection: detection,
+        ageResult: ageResult
       };
     } else {
       return {
@@ -374,8 +434,9 @@ async function getFaceDescriptor(imagePath) {
 /**
  * Announce recognition based on settings
  * @param {Object} person - Recognized person data
+ * @param {Object} ageResult - Age detection result
  */
-function announceRecognition(person) {
+function announceRecognition(person, ageResult) {
   const mode = settings.getAnnouncementMode();
   if (mode === 'none') return;
   
@@ -385,7 +446,19 @@ function announceRecognition(person) {
     if (mode === 'name') {
       speech.text = person.name;
     } else if (mode === 'full') {
-      speech.text = `${person.name}, your ${person.relationship || 'contact'}. ${person.notes || ''}`;
+      let speechText = `${person.name}, your ${person.relationship || 'contact'}`;
+      
+      // Add age if detected
+      if (ageResult) {
+        speechText += `, approximately ${ageResult.age} years old`;
+      }
+      
+      // Add notes if available
+      if (person.notes) {
+        speechText += `. ${person.notes}`;
+      }
+      
+      speech.text = speechText;
     }
     
     // Check for user's preferred voice from settings
@@ -436,9 +509,11 @@ function announceRecognition(person) {
     window.speechSynthesis.speak(speech);
   }
 }
+
 function getAvailableVoices() {
   return speechVoices;
 }
+
 /**
  * Check if recognition is currently active
  * @returns {boolean} Whether recognition is active
@@ -454,6 +529,15 @@ function isActive() {
 function isModelsLoaded() {
   return modelsLoaded;
 }
+
+/**
+ * Check if age gender model is loaded
+ * @returns {boolean} Whether age gender model is loaded
+ */
+function isAgeGenderModelLoaded() {
+  return ageGenderModelLoaded;
+}
+
 function debugVoices() {
   console.log('=== VOICE DEBUG INFO ===');
   
@@ -523,6 +607,7 @@ function debugVoices() {
     settingsVoice: settings.getPreferredVoice()
   };
 }
+
 // Export the module functions
 module.exports = {
   init,
@@ -531,6 +616,7 @@ module.exports = {
   loadFaceRecognitionModels,
   isActive,
   isModelsLoaded,
+  isAgeGenderModelLoaded,
   getAvailableVoices,
   debugVoices
 };

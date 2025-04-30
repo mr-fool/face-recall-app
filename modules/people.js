@@ -23,6 +23,7 @@ let knownPeople = [];
 let selectedPhotos = [];
 let faceDescriptors = [];
 let editingPersonId = null;
+let detectedAge = null;
 
 /**
  * Initialize the people module
@@ -100,6 +101,27 @@ async function updateLastRecognized(personId) {
 }
 
 /**
+ * Update age information for a person
+ * @param {string} personId - Person ID to update
+ * @param {number} age - Detected age
+ */
+async function updatePersonAge(personId, age) {
+  try {
+    await db.updatePerson(personId, { detectedAge: age });
+    
+    // Update in local list
+    const index = knownPeople.findIndex(p => p._id === personId);
+    if (index !== -1) {
+      knownPeople[index].detectedAge = age;
+    }
+    
+    logDebug(`Updated detected age for person ${personId}: ${age} years old`);
+  } catch (error) {
+    console.error('Error updating person age:', error);
+  }
+}
+
+/**
  * Select photos for a person
  * @returns {Promise<Array>} Selected photos with face detection results
  */
@@ -108,6 +130,7 @@ async function selectPhotos() {
     // Reset data
     selectedPhotos = [];
     faceDescriptors = [];
+    detectedAge = null;
     
     // Select photos via Electron dialog
     const filePaths = await ipcRenderer.invoke('select-photos');
@@ -131,13 +154,20 @@ async function selectPhotos() {
             path: filePath,
             descriptor: result.descriptor
           });
+          
+          // If we have age detection result, save it
+          if (result.ageResult && faceDescriptors.length === 1) {
+            detectedAge = result.ageResult.age;
+            logDebug(`Detected age in photo: ${detectedAge} years old`);
+          }
         }
         
         // Add to results
         photoResults.push({
           path: filePath,
           valid: result.valid,
-          error: result.error
+          error: result.error,
+          ageResult: result.ageResult
         });
       } catch (error) {
         console.error(`Error processing image ${filePath}:`, error);
@@ -185,6 +215,11 @@ async function savePerson(personData) {
         faceDescriptor: faceDescriptors.length > 0 ? faceDescriptors[0].descriptor : null
       };
       
+      // Add detected age if available
+      if (detectedAge !== null) {
+        updatedPerson.detectedAge = detectedAge;
+      }
+      
       await db.updatePerson(editingPersonId, updatedPerson);
       
       // Update in known people list
@@ -209,6 +244,11 @@ async function savePerson(personData) {
         lastRecognized: null
       };
       
+      // Add detected age if available
+      if (detectedAge !== null) {
+        newPerson.detectedAge = detectedAge;
+      }
+      
       // Save to database
       const savedPerson = await db.addPerson(newPerson);
       
@@ -223,6 +263,7 @@ async function savePerson(personData) {
     selectedPhotos = [];
     faceDescriptors = [];
     editingPersonId = null;
+    detectedAge = null;
     
     // Update UI
     ui.displayPeopleList(knownPeople);
@@ -257,10 +298,16 @@ function editPerson(person) {
     }];
   }
   
+  // Set age if available
+  if (person.detectedAge) {
+    detectedAge = person.detectedAge;
+  }
+  
   // Show photo previews
   const photoData = person.images.map(path => ({
     path,
-    valid: true
+    valid: true,
+    ageResult: person.detectedAge ? { age: person.detectedAge } : null
   }));
   
   ui.displayPhotoPreview(photoData);
@@ -413,6 +460,7 @@ module.exports = {
   init,
   getKnownPeople,
   updateLastRecognized,
+  updatePersonAge,
   selectPhotos,
   savePerson,
   editPerson,
