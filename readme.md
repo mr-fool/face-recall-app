@@ -2,8 +2,9 @@
 
 A face recognition application that helps Alzheimer's patients identify familiar people using camera technology.
 
-![run](https://github.com/user-attachments/assets/991a8827-a7b5-4564-9507-90d868271ed6)
-![run-2](https://github.com/user-attachments/assets/93289e43-c9bf-481b-95d0-a7627f9f0306)
+![main](https://github.com/user-attachments/assets/86cc9082-569a-4524-b72c-76b7254c0cc7)
+![addToDatabase](https://github.com/user-attachments/assets/741fea0f-b686-4f8e-b66d-e3237980d2b6)
+
 
 ## Overview
 
